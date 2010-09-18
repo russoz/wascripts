@@ -1,6 +1,6 @@
 #!/bin/ksh
 #
-# Alexei Znamensky <alexei.znamensky@avon.com>
+# Alexei Znamensky <russoz@gmail.com>
 #
 
 usage() {
