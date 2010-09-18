@@ -1,0 +1,10 @@
+#!/bin/ksh
+
+exec find /usr/IBM/WebSphere \( \
+  -name 'heapdump*'     -o \
+  -name 'javacore*'     -o \
+  -name 'Snap*'         -o \
+  -name 'core.*.dmp' \)    \
+  -print                   \
+  -exec /bin/rm -f {} \;
+

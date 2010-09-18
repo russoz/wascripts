@@ -1,0 +1,64 @@
+#!/bin/ksh
+
+msg() {
+  echo "$@" >&2
+}
+
+end() {
+  msg "=== THE END ==="
+  msg "End: $(date)"
+  exit $1
+}
+
+dumpuser="avonlog"
+dumphost="spolxpmon.sa.avonet.net"
+dumpbase="/var/avon/was/dumps"
+date=$(date +%Y%m%d)
+host=$(hostname)
+
+msg "Start: $(date)"
+
+msg "Looking for dump files..."
+files=$(echo $(find /usr/IBM/WebSphere \( \
+  -name 'heapdump*'     -o \
+  -name 'javacore*'     -o \
+  -name 'Snap*'         -o \
+  -name 'core.*.dmp' \)    \
+  -print))
+
+[ -z "${files}" ] && {
+  msg "Hurray, no dumps today"
+  end 0
+}
+
+m=$(ls -ld ${files})
+
+_location="${dumpuser}@${dumphost}:${dumpbase}/${host}/${date}"
+
+msg "Making remote directory"
+ssh ${dumpuser}@${dumphost} mkdir -p ${dumpbase}/${host}/${date} || {
+  msg "Cannot create dir: ${_location}"
+  end 1
+}
+
+msg "Moving files"
+for f in ${files}; do
+  msg "... $f"
+  rsync -zavu $f ${_location} || {
+    msg "*** ERROR: Cannot copy $f"
+    continue
+  }
+  /bin/rm -f $f || {
+    msg "*** ERROR: Cannot remove $f"
+  }
+done
+
+msg "Writing manifest"
+ssh ${dumpuser}@${dumphost} \
+  "echo '${m}' > ${dumpbase}/${host}/${date}/manifest.txt" || {
+  msg "*** ERROR: Cannot create manifest file"
+  end 2
+}
+
+end 0
+

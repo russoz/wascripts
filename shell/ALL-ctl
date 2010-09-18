@@ -1,0 +1,41 @@
+#!/bin/ksh
+#
+# Alexei Znamensky <alexei.znamensky@avon.com>
+#
+
+usage() {
+  echo "usage: ALL-ctl (start|stop|kill|restart)" >&2
+  exit 1
+}
+
+cmd="$1"
+[ -z "$cmd" ] && usage
+
+start_seq="dmgr node60 fwsecurity brods intpeoplesoft app1 node61"
+
+stop_seq="opis-dev-gi3 opis-dev server1-61 node61 mailplan maps app1 rep sir emissor centralizador brods intpeoplesoft fwsecurity node60 dmgr"
+
+case "$cmd" in
+  start)
+    for s in $start_seq; do
+      /was/bin/"${s}"-ctl start || { echo "ERROR: starting $s" >&2; }
+    done
+    ;;
+  stop|kill)
+    for s in $stop_seq; do
+      /was/bin/${s}-ctl ${cmd} || { echo "ERROR: stopping $s" >&2; }
+    done
+    ;;
+  restart)
+    $0 stop
+    $0 kill
+    echo "Sleeping for a minute" >&2
+    sleep 60
+    $0 start
+    ;;
+  *) usage
+    ;;
+esac
+
+
+

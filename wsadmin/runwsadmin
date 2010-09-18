@@ -1,0 +1,86 @@
+#!/bin/bash
+#
+# $Id$
+#
+
+was_dir=/usr/IBM/WebSphere/AppServer
+
+usage() {
+  cat >&2 <<'EOM'
+usage: runwsadmin [-h] [-a|-y] [-u <user> -p <password>] [-w <was_dir> ]
+
+DESCRIPTION
+    This script is meant to be a wrapper for the wsadmin.sh script in
+    WebSphere Application Server (R) installations, intending to make the
+    wsadmin scripts run as simple Unix/Linux commands, making the first line
+    of those script look like:
+
+        #!/usr/bin/env runwsadmin -y -w /usr/IBM/WebSphere/profiles/AppSrv01
+
+    It can be used to call the proper wsadmin for the intended WAS profile,
+    using the proper language (jacl or jython), and user/password if needed.
+
+    It will look for a runwsadmin.local at the same location of the running
+    runwsadmin script. If found, it will source its content, allowing for
+    user/pass (sensitive information) to be stored separatedly from this
+    script. For that, set the variables "was_user" and "was_pass" into that
+    file. You may also set a default WAS directory with the "was_dir"
+    variable.
+
+OPTIONS
+    -h This help text
+    -a Forces JACL language for script
+    -y Forces Jython language for script
+    -w Chooses a WebSphere directory (or profile directory)
+    -u and -p User and Password, if required
+
+EOM
+  exit 1
+}
+
+[ -f "$0".local ] && . "$0".local
+
+while getopts "ayu:p:w:h" opt; do
+  case "$opt" in
+    a) opt_a=1; lang="jacl" ;;
+    y) opt_y=1; lang="jython" ;;
+    u) was_user="$OPTARG" ;;
+    p) was_pass="$OPTARG" ;;
+    w) was_dir="$OPTARG" ;;
+    h|?) usage ;;
+  esac
+done
+
+shift $(( $OPTIND - 1 ))
+[ "$opt_a" == "1" -a "$opt_y" == "1" ] && usage
+[ -n "$was_user" -a -z "$was_pass" ] && usage
+[ -z "$was_user" -a -n "$was_pass" ] && usage
+
+script="$1"
+shift
+
+[ -z "${script}" ] && usage
+
+has_ext() {
+	f="$1"
+	e="$2"
+
+	[ "$f" != $(basename $f $e) ]
+}
+
+if [ -n "$lang"]; then
+  if has_ext "${script}" .py; then
+	  lang="jython"
+  elif has_ext "${script}" .jacl; then
+	  lang="jacl"
+  else
+	  echo "Cannot recognize script ${script} extension (.py|.jacl)" >&2
+	  exit 1
+  fi
+fi
+
+AUTH=""
+[ -n "${was_user}" ] && AUTH="-user ${was_user} -password ${was_pass}"
+
+exec ${was_dir}/bin/wsadmin.sh -lang ${lang} $AUTH -f "${script}" "$@"
+
