@@ -1,18 +1,22 @@
 # update-ear.py
 #
-# Alexei.Znamensky@cognizant.com
-# May 18, 2010
+# Alexei Znamensky
+# russoz@gmail.com
 #
 
 import sys, java
 from java.util import Date,TimeZone
 from java.text import SimpleDateFormat
 
+tzspec="America/Sao_Paulo"
+
 if len(sys.argv) != 2:
     print >> sys.stderr, 'update-ear.py: <enterprise-app> <ear-file>'
     sys.exit(1)
 
+tz = TimeZone.getTimeZone(tzspec)
 df = SimpleDateFormat()
+df.setTimeZone(tz)
 
 def log(msg):
     print >> sys.stderr, "=== ["+df.format(Date())+"]", msg
