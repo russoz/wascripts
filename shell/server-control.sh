@@ -13,18 +13,19 @@ _msg() {
   echo "$@" >&2
 }
 
-##############################################################################
-
-_printcommand() {
-  script="$1"
-  cmd="$2"
-  
-  output=""
-  len=${#script}
-  i=0
-#  while [ $i -lt $len ]; do
-#    output="${output}="
+_debug() {
+  [ -z "$DEBUG" ] && return
+  _msg 'DEBUG:' "$@"
 }
+
+_mustberoot() {
+  [ $(id -u) = 0 ] || {
+    _msg "ERROR: Must be root!"
+    exit 1
+  }
+}
+
+##############################################################################
 
 _logfile() {
   file="$1"; shift
@@ -78,6 +79,7 @@ _was_kill() {
   sleep 20
   proc=$(_was_ps "${root}" "${server}")
   [ -z "$proc" ] && { _msg "Dead."; return 0; }
+  _debug "proc=$proc"
 
   _msg "Sending SIGKILL to pid" $pid
   kill -KILL $pid
@@ -98,25 +100,60 @@ _was_kill() {
   return 1
 }
 
-_was_status() {
-  root="$1"
-  server="$2"
-  up="$3"
-
-  pid=$(_was_ps "${root}" "${server}" | awk '{ print $2 }')
-  [ -z "$pid" ] && {
-    _msg "No process found (root=$root; server=$server)"
-    return 1
-  }
-  _msg "Process found running with PID: $pid"
-  ${root}/bin/serverStatus.sh ${server} ${up}
-}
-
 _was_env() {
   file="$1"
 
   /usr/bin/cat ${file} \
     | /usr/bin/awk '/Start.*Environment/,/End.*Environment/ { print }'
+}
+
+_run() {
+  user="$1"; shift
+
+  _debug "user: $user"
+  _debug "$*"
+  if [ -n "$user" ]; then
+    su - "$user" -c "$*"
+  else
+    "$@"
+  fi
+}
+
+_was_switch() {
+  type="$1"; shift
+  unixid="$1"; shift
+  root="$1"; shift
+  comm="$1"; shift
+  server="$1"; shift
+
+  case "${type}" in
+    d|D) _start=startManager.sh; _stop=stopManager.sh; _status_srv=dmgr ;;
+    n|N) _start=startNode.sh; _stop=stopNode.sh; _status_srv=nodeagent ;;
+    s|S) _start=startServer.sh; _stop=stopServer.sh; _status_srv="${server}" ;;
+  esac   
+
+  case "${comm}" in
+    start)      _run "$unixid" ${root}/bin/${_start} ${server} $@ ;;
+    stop)       _run "$unixid" ${root}/bin/${_stop}  ${server} $@ ;;
+
+    status)     pid=$(_was_ps "${root}" "${_status_srv}" | awk '{ print $2 }')
+                [ -z "$pid" ] && {
+                  _msg "No process found (root=$root; server=$_status_srv)"
+                  return 1
+                }
+                _msg "Process found running with PID: $pid"
+                _run "$unixid" ${root}/bin/serverStatus.sh ${_status_srv} $@ ;;
+
+    status-all) _run "$unixid" ${root}/bin/serverStatus.sh -all $@ ;;
+    restart)    _run "$unixid" ${root}/bin/${_stop} ${server} $@ \
+                  && sleep 5 \
+                  && _run "$unixid" ${root}/bin/${_start} ${server} $@ ;;
+    log)        _logfile ${root}/logs/${_status_srv}/SystemOut.log "$@" ;;
+    err)        _logfile ${root}/logs/${_status_srv}/SystemErr.log "$@" ;;
+    kill)       _was_kill "${root}" "${server}" ;;
+    version)    _run "$unixid" ${root}/bin/versionInfo.sh ;;
+    env)        _was_env ${root}/logs/${_status_srv}/SystemOut.log ;;
+  esac
 }
 
 ##############################################################################
@@ -159,6 +196,8 @@ OPTIONS
         User name for WAS
     -p  <password> (optional)
         Password for WAS
+    -U  <user> (optional)
+        Local OS user
 
 EOM
   }
@@ -166,7 +205,7 @@ EOM
 }
 
 _wasctl() {
-  set -- $(getopt n:r:s:u:p: $*)
+  set -- $(getopt n:r:s:u:p:U: $*)
   # check result of parsing
   [ $? != 0 ] && { usage_wasctl; return 1; }
   
@@ -180,11 +219,13 @@ _wasctl() {
       -s)   server="$1"; shift ;;
       -u)   user="$1"; shift ;;
       -p)   pass="$1"; shift ;;
+      -U)   unixid="$1"; shift ;;
       *)    usage_wasctl "_wasctl: Invalid option $1" ;;
     esac
   done
   shift   # skip the --
 
+  _mustberoot
   [ -z "${name}" ]   && { usage_wasctl "_wasctl: Must specify a name"  ; }
   [ -z "${root}" ]   && { usage_wasctl "_wasctl: Must specify a root"  ; }
   [ -d "${root}" ]   || { usage_wasctl "_wasctl: Invalid root: ${root}"; }
@@ -206,23 +247,13 @@ _wasctl() {
   _msg "=================== ${name}(${server}): ${comm}"
 
   case "${comm}" in
-    help)       usage_wasctl -n ${name}                               ;;
-    start)      ${root}/bin/startServer.sh  ${server} ${UP}           ;;
-    stop)       ${root}/bin/stopServer.sh   ${server} ${UP}           ;;
-    status)     _was_status ${root} ${server} ${UP}                   ;;
-    status-all) ${root}/bin/serverStatus.sh -all      ${UP}           ;;
-    restart)    ${root}/bin/stopServer.sh   ${server} ${UP} \
-                  && sleep 5 \
-                  && ${root}/bin/startServer.sh ${server} ${UP}       ;;
-    log)        _logfile ${root}/logs/${server}/SystemOut.log "$@"    ;;
-    err)        _logfile ${root}/logs/${server}/SystemErr.log "$@"    ;;
-    kill)       _was_kill "${root}" "${server}" ;;
-    version)    ${root}/bin/versionInfo.sh ;;
-    env)        _was_env ${root}/logs/${server}/SystemOut.log         ;;
+    start|stop|status|status-all|restart|log|err|kill|version|env)
+          _was_switch s "${unixid}" "${root}" "${comm}" "${server}" $UP ;;
 
-    *)          _msg "usage: ${name}" \
-                  "(help|start|stop|restart|status|status-all|log|err|kill)"
-                return 1 ;;
+    help) usage_wasctl -n ${name} ;;
+    *)    _msg "usage: ${name}" \
+            "(help|start|stop|restart|status|status-all|log|err|kill)"
+          return 1 ;;
   esac
 }
 
@@ -263,6 +294,8 @@ OPTIONS
         User name for WAS
     -p  <password> (optional)
         Password for WAS
+    -U  <user> (optional)
+        Local OS user
 
 EOM
   }
@@ -270,7 +303,7 @@ EOM
 }
 
 _wasnodectl() {
-  set -- $(getopt D:P:n:r:u:p: $*)
+  set -- $(getopt D:P:n:r:u:p:U: $*)
   # check result of parsing
   [ $? != 0 ] && { usage_wasnodectl; return 1; }
   
@@ -285,11 +318,13 @@ _wasnodectl() {
       -p)   pass="$1"; shift ;;
       -D)   dmgr="$1"; shift ;;
       -P)   port="$1"; shift ;;
+      -U)   unixid="$1"; shift ;;
       *)    usage_wasnodectl "Invalid option $1" ;;
     esac
   done
   shift   # skip the --
 
+  _mustberoot
   [ -z "${name}" ] && { usage_wasnodectl "_wasnodectl: Must specify a name"; }
   [ -z "${root}" ] && { usage_wasnodectl "_wasnodectl: Must specify a root"; }
   [ -d "${root}" ] || { usage_wasnodectl "_wasnodectl: Invalid root: ${root}"; }
@@ -313,28 +348,18 @@ _wasnodectl() {
   }
 
   case "${comm}" in
-    help)       usage_wasnodectl -n ${name} ;;
-    start)      ${root}/bin/startNode.sh ${UP} ;;
-    stop)       ${root}/bin/stopNode.sh ${UP} ;;
-    status)     _was_status ${root} nodeagent ${UP} ;;
-    status-all) ${root}/bin/serverStatus.sh -all ${UP} ;;
-    restart)    ${root}/bin/stopNode.sh ${UP} \
-                  && sleep 5 \
-                  && ${root}/bin/startNode.sh ${UP} ;;
-    sync)       [ -n "${dmgr}" ] && {
-                  ${root}/bin/stopNode.sh ${UP} \
-                    && ${root}/bin/syncNode.sh ${dmgr} ${port} ${UP} \
-                    && ${root}/bin/startNode.sh ${UP}
-                } ;;
-    log)        _logfile ${root}/logs/nodeagent/SystemOut.log "$@";;
-    err)        _logfile ${root}/logs/nodeagent/SystemErr.log "$@";;
-    kill)       _was_kill "${root}" nodeagent ;;
-    version)    ${root}/bin/versionInfo.sh ;;
-    env)        _was_env ${root}/logs/nodeagent/SystemOut.log         ;;
+    start|stop|status|status-all|restart|log|err|kill|version|env)
+          _was_switch n "${unixid}" "${root}" "${comm}" "${server}" $UP ;;
 
-    *)          _msg "usage: ${name}" \
-                  "(help|start|stop|restart|status|status-all|log|err|kill)"
-                return 1 ;;
+    help) usage_wasnodectl -n ${name} ;;
+    sync) [ -n "${dmgr}" ] && {
+            _run "${unixid}" ${root}/bin/stopNode.sh ${UP} \
+              && _run "${unixid}" ${root}/bin/syncNode.sh ${dmgr} ${port} ${UP} \
+              && _run "${unixid}" ${root}/bin/startNode.sh ${UP}
+          } ;;
+    *)    _msg "usage: ${name}" \
+            "(help|start|stop|restart|status|status-all|log|err|kill)"
+          return 1 ;;
   esac
 }
 
@@ -375,6 +400,8 @@ OPTIONS
         User name for WAS
     -p  <password> (optional)
         Password for WAS
+    -U  <user> (optional)
+        Local OS user
 
 EOM
   }
@@ -382,7 +409,7 @@ EOM
 }
 
 _wasdmgrctl() {
-  set -- $(getopt n:r:u:p: $*)
+  set -- $(getopt n:r:u:p:U: $*)
   # check result of parsing
   [ $? != 0 ] && { usage_wasdmgrctl; return 1; }
   
@@ -395,11 +422,13 @@ _wasdmgrctl() {
       -r)   root="$1"; shift ;;
       -u)   user="$1"; shift ;;
       -p)   pass="$1"; shift ;;
+      -U)   unixid="$1"; shift ;;
       *)    usage_wasdmgrctl "Invalid option $1" ;;
     esac
   done
   shift   # skip the --
 
+  _mustberoot
   [ -z "${name}" ] && { usage_wasdmgrctl "_wasdmgrctl: Must specify a name"; }
   [ -z "${root}" ] && { usage_wasdmgrctl "_wasdmgrctl: Must specify a root"; }
   [ -d "${root}" ] || { usage_wasdmgrctl "_wasdmgrctl: Invalid root: ${root}"; }
@@ -420,23 +449,13 @@ _wasdmgrctl() {
   _msg "=================== ${name}: ${comm}"
 
   case "${comm}" in
-    help)       usage_wasdmgrctl -n ${name} ;;
-    start)      ${root}/bin/startManager.sh ${UP} ;;
-    stop)       ${root}/bin/stopManager.sh ${UP} ;;
-    status)     _was_status ${root} dmgr ${UP} ;;
-    status-all) ${root}/bin/serverStatus.sh -all ${UP} ;;
-    restart)    ${root}/bin/stopManager.sh ${UP} \
-                  && sleep 5 \
-                  && ${root}/bin/startManager.sh ${UP} ;;
-    log)        _logfile ${root}/logs/dmgr/SystemOut.log "$@";;
-    err)        _logfile ${root}/logs/dmgr/SystemErr.log "$@";;
-    kill)       _was_kill "${root}" dmgr ;;
-    version)    ${root}/bin/versionInfo.sh ;;
-    env)        _was_env ${root}/logs/dmgr/SystemOut.log         ;;
+    start|stop|status|status-all|restart|log|err|kill|version|env)
+          _was_switch d "${unixid}" "${root}" "${comm}" "" $UP ;;
 
-    *)          _msg "usage: ${name}" \
-                  "(help|start|stop|restart|status|status-all|log|err|kill)"
-                return 1 ;;
+    help) usage_wasdmgrctl -n ${name} ;;
+    *)    _msg "usage: ${name}" \
+            "(help|start|stop|restart|status|status-all|log|err|kill)"
+          return 1 ;;
   esac
 }
 
@@ -491,6 +510,7 @@ _ihsctl() {
   done
   shift   # skip the --
 
+  _mustberoot
   [ -z "${name}" ] && { usage_ihsctl "_ihsctl: Must specify a name"; }
   [ -z "${root}" ] && { usage_ihsctl "_ihsctl: Must specify a root"; }
 
@@ -498,20 +518,16 @@ _ihsctl() {
   _msg "=================== ${name}: ${comm} $@"
 
   case "${comm}" in
-    start)          ${root}/bin/apachectl start                    ;;
-    stop)           ${root}/bin/apachectl stop                     ;;
-    graceful)       ${root}/bin/apachectl graceful                 ;;
-    status)         ${root}/bin/apachectl status                   ;;
+    start|stop|graceful|status)
+                    ${root}/bin/apachectl ${comm}                  ;;
     restart)        ${root}/bin/apachectl stop \
                       && sleep 5 \
                       && ${root}/bin/apachectl start               ;;
     log)            _logfile ${root}/logs/access_log "$@"          ;;
     err)            _logfile ${root}/logs/error_log  "$@"          ;;
                       
-    admin-start)    ${root}/bin/adminctl start                     ;;
-    admin-stop)     ${root}/bin/adminctl stop                      ;;
-    admin-graceful) ${root}/bin/adminctl graceful                  ;;
-    admin-status)   ${root}/bin/adminctl status                    ;;
+    admin-start|admin-stop|admin-graceful|admin-status)
+                    ${root}/bin/adminctl $(echo ${comm}|sed -e 's/admin-//') ;;
     admin-restart)  ${root}/bin/adminctl stop \
                       && ${root}/bin/adminctl start                ;;
     admin-log)      _logfile ${root}/logs/admin_access_log "$@"    ;;
@@ -571,6 +587,7 @@ _ldapctl() {
   done
   shift   # skip the --
 
+  _mustberoot
   [ -z "${name}" ] && { usage_ldapctl "_ldapctl: Must specify a name"; }
   [ -z "${root}" ] && { usage_ldapctl "_ldapctl: Must specify a root"; }
   [ -z "${inst}" ] && { usage_ldapctl "_ldapctl: Must specify an instance"; }
@@ -614,26 +631,15 @@ OPTIONS
         Root directory for the MQ installation
     -m  <queue manager> (mandatory)
         MQ Queue Manager to apply command
-    -u  <user> (optional)
+    -U  <user> (optional)
         User ID to issue MQ commands
 
 EOM
   exit 1
 }
 
-__runmq() {
-  user="$1"; shift
-  cmd="$1"; shift
-
-  if [ -n "$user" ]; then
-    su - "${user}" -c "${cmd}" "$@"
-  else
-    ${cmd} "$@"
-  fi
-}
-
 _mqctl() {
-  set -- $(getopt n:r:m:u: $*)
+  set -- $(getopt n:r:m:U: $*)
   # check result of parsing
   [ $? != 0 ] && { usage_mqctl; return 1; }
 
@@ -645,12 +651,13 @@ _mqctl() {
       -n)   name="$1"; shift ;;
       -r)   root="$1"; shift ;;
       -m)   qmgr="$1"; shift ;;
-      -u)   user="$1"; shift ;;
+      -U)   unixid="$1"; shift ;;
       *)    usage_mqctl "Invalid option $1" ;;
     esac
   done
   shift   # skip the --
 
+  _mustberoot
   [ -z "${name}" ] && { usage_mqctl "_mqctl: Must specify a name"; }
   [ -z "${root}" ] && { usage_mqctl "_mqctl: Must specify a root"; }
   [ -z "${qmgr}" ] && { usage_mqctl "_mqctl: Must specify a qmgr"; }
@@ -659,26 +666,26 @@ _mqctl() {
   _msg "=================== ${name}(${qmgr}): ${comm}"
 
   case "${comm}" in
-    start)    __runmq "${user}" ${root}/bin/strmqm      ${qmgr}
-              __runmq "${user}" ${root}/bin/strmqcsv    ${qmgr}
-              __runmq "${user}" ${root}/bin/runmqlsr -m ${qmgr} -t TCP &   ;;
+    start)    _run "${unixid}" ${root}/bin/strmqm      ${qmgr}
+              _run "${unixid}" ${root}/bin/strmqcsv    ${qmgr}
+              _run "${unixid}" ${root}/bin/runmqlsr -m ${qmgr} -t TCP &   ;;
 
-    stop)     __runmq "${user}" ${root}/bin/endmqlsr -m ${qmgr}
-              __runmq "${user}" ${root}/bin/endmqcsv -c ${qmgr}
-              __runmq "${user}" ${root}/bin/endmqm      ${qmgr}   ;;
+    stop)     _run "${unixid}" ${root}/bin/endmqlsr -m ${qmgr}
+              _run "${unixid}" ${root}/bin/endmqcsv -c ${qmgr}
+              _run "${unixid}" ${root}/bin/endmqm      ${qmgr}   ;;
 
-    status)   __runmq "${user}" ${root}/bin/dspmq -m    ${qmgr}
-              __runmq "${user}" ${root}/bin/dspmqcsv    ${qmgr}   ;;
+    status)   _run "${unixid}" ${root}/bin/dspmq -m    ${qmgr}
+              _run "${unixid}" ${root}/bin/dspmqcsv    ${qmgr}   ;;
 
     restart)  #stop
-              __runmq "${user}" ${root}/bin/endmqlsr -m ${qmgr}
-              __runmq "${user}" ${root}/bin/endmqcsv -c ${qmgr}
-              __runmq "${user}" ${root}/bin/endmqm      ${qmgr}
+              _run "${unixid}" ${root}/bin/endmqlsr -m ${qmgr}
+              _run "${unixid}" ${root}/bin/endmqcsv -c ${qmgr}
+              _run "${unixid}" ${root}/bin/endmqm      ${qmgr}
             
               #start
-              __runmq "${user}" ${root}/bin/strmqm      ${qmgr}
-              __runmq "${user}" ${root}/bin/strmqcsv    ${qmgr}
-              __runmq "${user}" ${root}/bin/runmqlsr -m ${qmgr} -t TCP &   ;;
+              _run "${unixid}" ${root}/bin/strmqm      ${qmgr}
+              _run "${unixid}" ${root}/bin/strmqcsv    ${qmgr}
+              _run "${unixid}" ${root}/bin/runmqlsr -m ${qmgr} -t TCP &   ;;
 
     *)        _msg "usage: ${name} (start|stop|restart|status)"
               return 1 ;;
