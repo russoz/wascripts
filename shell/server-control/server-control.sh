@@ -169,11 +169,11 @@ _was_switch() {
 
 usage_wasctl() {
   [ "$1" = "-n" ] && { svcname="$2"; shift; shift; }
-  [ -n "$1" ] && _msg 'ERROR:' "$@"
+  [ -n "$1" ] && _msg 'ERROR: wasctl:' "$@"
   cat >&2 <<EOU
 
 USAGE
-    ${svcname:-_wasctl [options]} command
+    ${svcname:-wasctl [options]} command
     
 DESCRIPTION
     Controls a WAS instance
@@ -213,7 +213,7 @@ EOM
   exit 1
 }
 
-_wasctl() {
+wasctl() {
   set -- $(getopt n:r:s:u:p:U: $*)
   # check result of parsing
   [ $? != 0 ] && { usage_wasctl; return 1; }
@@ -230,18 +230,18 @@ _wasctl() {
       -u)   user="$1"; shift ;;
       -p)   pass="$1"; shift ;;
       -U)   unixid="$1"; shift ;;
-      *)    usage_wasctl "_wasctl: Invalid option $1" ;;
+      *)    usage_wasctl "Invalid option $1" ;;
     esac
   done
   shift   # skip the --
 
-  [ -z "${name}" ]   && { usage_wasctl "_wasctl: Must specify a name"  ; }
-  [ -z "${root}" ]   && { usage_wasctl "_wasctl: Must specify a root"  ; }
-  [ -d "${root}" ]   || { usage_wasctl "_wasctl: Invalid root: ${root}"; }
-  [ -z "${server}" ] && { usage_wasctl "_wasctl: Must specify a server"; }
+  [ -z "${name}" ]   && { usage_wasctl "Must specify a name"  ; }
+  [ -z "${root}" ]   && { usage_wasctl "Must specify a root"  ; }
+  [ -d "${root}" ]   || { usage_wasctl "Invalid root: ${root}"; }
+  [ -z "${server}" ] && { usage_wasctl "Must specify a server"; }
 
   _check_user_pass "${user}" "${pass}" || {
-    usage_wasctl "_wasctl: Must specify both user and password"
+    usage_wasctl "Must specify both user and password"
   }
 
   [ -z "${user}" ] && UP="-username ${user} -password ${pass}"
@@ -264,11 +264,11 @@ _wasctl() {
 
 usage_wasnodectl() {
   [ "$1" = "-n" ] && { svcname="$2"; shift; shift; }
-  [ -n "$1" ] && _msg 'ERROR:' "$@"
+  [ -n "$1" ] && _msg 'ERROR: wasnodectl:' "$@"
   cat >&2 <<EOU
 
 USAGE
-    ${svcname:-_wasnodectl [options]} command
+    ${svcname:-wasnodectl [options]} command
 
 DESCRIPTION
     Controls a WAS node agent
@@ -328,12 +328,12 @@ _wasnodectl() {
   done
   shift   # skip the --
 
-  [ -z "${name}" ] && { usage_wasnodectl "_wasnodectl: Must specify a name"; }
-  [ -z "${root}" ] && { usage_wasnodectl "_wasnodectl: Must specify a root"; }
-  [ -d "${root}" ] || { usage_wasnodectl "_wasnodectl: Invalid root: ${root}"; }
+  [ -z "${name}" ] && { usage_wasnodectl "Must specify a name"; }
+  [ -z "${root}" ] && { usage_wasnodectl "Must specify a root"; }
+  [ -d "${root}" ] || { usage_wasnodectl "Invalid root: ${root}"; }
 
   _check_user_pass "${user}" "${pass}" || {
-    usage_wasnodectl "_wasnodectl: Must specify both user and password"
+    usage_wasnodectl "Must specify both user and password"
   }
 
   [ -z "${user}" ] && UP="-username ${user} -password ${pass}"
@@ -364,11 +364,11 @@ _wasnodectl() {
 
 usage_wasdmgrctl() {
   [ "$1" = "-n" ] && { svcname="$2"; shift; shift; }
-  [ -n "$1" ] && _msg 'ERROR:' "$@"
+  [ -n "$1" ] && _msg 'ERROR: wasdmgrctl:' "$@"
   cat >&2 <<EOU
 
 USAGE
-    ${svcname:-_wasdmgrctl [options]} command
+    ${svcname:-wasdmgrctl [options]} command
 
 DESCRIPTION
     Controls a WAS deployment manager
@@ -426,12 +426,12 @@ _wasdmgrctl() {
   done
   shift   # skip the --
 
-  [ -z "${name}" ] && { usage_wasdmgrctl "_wasdmgrctl: Must specify a name"; }
-  [ -z "${root}" ] && { usage_wasdmgrctl "_wasdmgrctl: Must specify a root"; }
-  [ -d "${root}" ] || { usage_wasdmgrctl "_wasdmgrctl: Invalid root: ${root}"; }
+  [ -z "${name}" ] && { usage_wasdmgrctl "Must specify a name"; }
+  [ -z "${root}" ] && { usage_wasdmgrctl "Must specify a root"; }
+  [ -d "${root}" ] || { usage_wasdmgrctl "Invalid root: ${root}"; }
 
   _check_user_pass "${user}" "${pass}" || {
-    usage_wasdmgrctl "_wasdmgrctl: Must specify both user and password"
+    usage_wasdmgrctl "Must specify both user and password"
   }
 
   [ -z "${user}" ] && UP="-username ${user} -password ${pass}"
@@ -453,10 +453,10 @@ _wasdmgrctl() {
 ##############################################################################
 
 usage_ihsctl() {
-  [ -n "$1" ] && _msg 'ERROR:' "$@"
+  [ -n "$1" ] && _msg 'ERROR: ihsctl:' "$@"
   cat >&2 <<EOM
 USAGE
-    _ihsctl [options] command
+    ihsctl [options] command
 
 DESCRIPTION
     Controls an IHS instance
@@ -502,8 +502,8 @@ _ihsctl() {
   done
   shift   # skip the --
 
-  [ -z "${name}" ] && { usage_ihsctl "_ihsctl: Must specify a name"; }
-  [ -z "${root}" ] && { usage_ihsctl "_ihsctl: Must specify a root"; }
+  [ -z "${name}" ] && { usage_ihsctl "Must specify a name"; }
+  [ -z "${root}" ] && { usage_ihsctl "Must specify a root"; }
 
   comm="$1"; shift
   _msg "=================== ${name}: ${comm} $@"
@@ -534,10 +534,10 @@ _ihsctl() {
 ##############################################################################
 
 usage_ldapctl() {
-  [ -n "$1" ] && _msg 'ERROR:' "$@"
+  [ -n "$1" ] && _msg 'ERROR: ldapctl:' "$@"
   cat >&2 <<EOM
 USAGE
-    _ldapctl [options] command
+    ldapctl [options] command
     
 DESCRIPTION
     Controls a Tivoli Directory Server (TDS) instance
@@ -579,9 +579,9 @@ _ldapctl() {
   done
   shift   # skip the --
 
-  [ -z "${name}" ] && { usage_ldapctl "_ldapctl: Must specify a name"; }
-  [ -z "${root}" ] && { usage_ldapctl "_ldapctl: Must specify a root"; }
-  [ -z "${inst}" ] && { usage_ldapctl "_ldapctl: Must specify an instance"; }
+  [ -z "${name}" ] && { usage_ldapctl "Must specify a name"; }
+  [ -z "${root}" ] && { usage_ldapctl "Must specify a root"; }
+  [ -z "${inst}" ] && { usage_ldapctl "Must specify an instance"; }
 
   comm="$1"; shift
   _msg "=================== ${name}(${inst}): ${comm}"
@@ -600,10 +600,10 @@ _ldapctl() {
 ##############################################################################
 
 usage_mqctl() {
-  [ -n "$1" ] && _msg 'ERROR:' "$@"
+  [ -n "$1" ] && _msg 'ERROR: mqctl:' "$@"
   cat >&2 <<EOM
 USAGE
-    _mqctl [options] command
+    mqctl [options] command
     
 DESCRIPTION
     Controls a MQ instance
@@ -648,9 +648,9 @@ _mqctl() {
   done
   shift   # skip the --
 
-  [ -z "${name}" ] && { usage_mqctl "_mqctl: Must specify a name"; }
-  [ -z "${root}" ] && { usage_mqctl "_mqctl: Must specify a root"; }
-  [ -z "${qmgr}" ] && { usage_mqctl "_mqctl: Must specify a qmgr"; }
+  [ -z "${name}" ] && { usage_mqctl "Must specify a name"; }
+  [ -z "${root}" ] && { usage_mqctl "Must specify a root"; }
+  [ -z "${qmgr}" ] && { usage_mqctl "Must specify a qmgr"; }
 
   comm="$1"; shift
   _msg "=================== ${name}(${qmgr}): ${comm}"
