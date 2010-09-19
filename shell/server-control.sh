@@ -25,6 +25,15 @@ _mustberoot() {
   }
 }
 
+_check_user_pass() {
+  user="$1"; shift
+  pass="$1"; shift
+
+  [ -n "$user" -a -n "$pass" ] && return 0
+  [ -z "$user" -a -z "$pass" ] && return 0
+  return 1
+}
+
 ##############################################################################
 
 _logfile() {
@@ -208,6 +217,7 @@ _wasctl() {
   set -- $(getopt n:r:s:u:p:U: $*)
   # check result of parsing
   [ $? != 0 ] && { usage_wasctl; return 1; }
+  _mustberoot
   
   unset name root server user pass UP comm
   name=${_scriptname}
@@ -225,23 +235,16 @@ _wasctl() {
   done
   shift   # skip the --
 
-  _mustberoot
   [ -z "${name}" ]   && { usage_wasctl "_wasctl: Must specify a name"  ; }
   [ -z "${root}" ]   && { usage_wasctl "_wasctl: Must specify a root"  ; }
   [ -d "${root}" ]   || { usage_wasctl "_wasctl: Invalid root: ${root}"; }
   [ -z "${server}" ] && { usage_wasctl "_wasctl: Must specify a server"; }
 
-  if [ -n "${user}" ]; then
-    [ -z "${pass}" ] && { 
-      usage_wasctl "_wasctl: Must specify both user and password"
-    }
+  _check_user_pass "${user}" "${pass}" || {
+    usage_wasctl "_wasctl: Must specify both user and password"
+  }
 
-    UP="-username ${user} -password ${pass}"
-  else # -u has not been passed
-    [ -n "${pass}" ] && {
-      usage_wasctl "_wasctl: Must specify both user and password"
-    }
-  fi
+  [ -z "${user}" ] && UP="-username ${user} -password ${pass}"
 
   comm="$1"; shift
   _msg "=================== ${name}(${server}): ${comm}"
@@ -306,6 +309,7 @@ _wasnodectl() {
   set -- $(getopt D:P:n:r:u:p:U: $*)
   # check result of parsing
   [ $? != 0 ] && { usage_wasnodectl; return 1; }
+  _mustberoot
   
   unset name root user pass UP comm
   name=${_scriptname}
@@ -324,22 +328,15 @@ _wasnodectl() {
   done
   shift   # skip the --
 
-  _mustberoot
   [ -z "${name}" ] && { usage_wasnodectl "_wasnodectl: Must specify a name"; }
   [ -z "${root}" ] && { usage_wasnodectl "_wasnodectl: Must specify a root"; }
   [ -d "${root}" ] || { usage_wasnodectl "_wasnodectl: Invalid root: ${root}"; }
 
-  if [ -n "${user}" ]; then
-    [ -z "${pass}" ] && { 
-      usage_wasnodectl "_wasnodectl: Must specify both user and password"
-    }
+  _check_user_pass "${user}" "${pass}" || {
+    usage_wasnodectl "_wasnodectl: Must specify both user and password"
+  }
 
-    UP="-username ${user} -password ${pass}"
-  else # -u has not been passed
-    [ -n "${pass}" ] && { 
-      usage_wasnodectl "_wasnodectl: Must specify both user and password"
-    }
-  fi
+  [ -z "${user}" ] && UP="-username ${user} -password ${pass}"
 
   comm="$1"; shift
   _msg "=================== ${name}: ${comm}"
@@ -412,6 +409,7 @@ _wasdmgrctl() {
   set -- $(getopt n:r:u:p:U: $*)
   # check result of parsing
   [ $? != 0 ] && { usage_wasdmgrctl; return 1; }
+  _mustberoot
   
   unset name root user pass UP comm
   name=${_scriptname}
@@ -428,22 +426,15 @@ _wasdmgrctl() {
   done
   shift   # skip the --
 
-  _mustberoot
   [ -z "${name}" ] && { usage_wasdmgrctl "_wasdmgrctl: Must specify a name"; }
   [ -z "${root}" ] && { usage_wasdmgrctl "_wasdmgrctl: Must specify a root"; }
   [ -d "${root}" ] || { usage_wasdmgrctl "_wasdmgrctl: Invalid root: ${root}"; }
 
-  if [ -n "${user}" ]; then
-    [ -z "${pass}" ] && { 
-      usage_wasdmgrctl "_wasdmgrctl: Must specify both user and password"
-    }
+  _check_user_pass "${user}" "${pass}" || {
+    usage_wasdmgrctl "_wasdmgrctl: Must specify both user and password"
+  }
 
-    UP="-username ${user} -password ${pass}"
-  else # -u has not been passed
-    [ -n "${pass}" ] && { 
-      usage_wasdmgrctl "_wasdmgrctl: Must specify both user and password"
-    }
-  fi
+  [ -z "${user}" ] && UP="-username ${user} -password ${pass}"
 
   comm="$1"; shift
   _msg "=================== ${name}: ${comm}"
@@ -497,6 +488,7 @@ _ihsctl() {
   set -- $(getopt n:r: $*)
   # check result of parsing
   [ $? != 0 ] && { usage_ihsctl; return 1; }
+  _mustberoot
   
   unset name root comm
   name=${_scriptname}
@@ -510,7 +502,6 @@ _ihsctl() {
   done
   shift   # skip the --
 
-  _mustberoot
   [ -z "${name}" ] && { usage_ihsctl "_ihsctl: Must specify a name"; }
   [ -z "${root}" ] && { usage_ihsctl "_ihsctl: Must specify a root"; }
 
@@ -573,6 +564,7 @@ _ldapctl() {
   set -- $(getopt n:r:i:u:p: $*)
   # check result of parsing
   [ $? != 0 ] && { usage_ldapctl; return 1; }
+  _mustberoot
   
   unset name root inst comm
   name=${_scriptname}
@@ -587,7 +579,6 @@ _ldapctl() {
   done
   shift   # skip the --
 
-  _mustberoot
   [ -z "${name}" ] && { usage_ldapctl "_ldapctl: Must specify a name"; }
   [ -z "${root}" ] && { usage_ldapctl "_ldapctl: Must specify a root"; }
   [ -z "${inst}" ] && { usage_ldapctl "_ldapctl: Must specify an instance"; }
@@ -596,14 +587,13 @@ _ldapctl() {
   _msg "=================== ${name}(${inst}): ${comm}"
 
   case "${comm}" in
-    start)      ${root}/bin/idsdirctl start  -- -I ${inst} ;;
-    stop)       ${root}/bin/idsdirctl stop   -- -I ${inst} ;;
-    status)     ${root}/bin/idsdirctl status -- -I ${inst} ;;
-    restart)    ${root}/bin/idsdirctl stop   -- -I ${inst} \
-                  && ${root}/bin/idsdirctl start -- -I ${inst} ;;
+    start|stop|status)
+             ${root}/bin/idsdirctl ${comm}  -- -I ${inst} ;;
+    restart) ${root}/bin/idsdirctl stop   -- -I ${inst} \
+               && ${root}/bin/idsdirctl start -- -I ${inst} ;;
 
-    *)          _msg "usage: ${name} (start|stop|restart|status)"
-                return 1 ;;
+    *)       _msg "usage: ${name} (start|stop|restart|status)"
+             return 1 ;;
   esac
 }
 
@@ -642,6 +632,7 @@ _mqctl() {
   set -- $(getopt n:r:m:U: $*)
   # check result of parsing
   [ $? != 0 ] && { usage_mqctl; return 1; }
+  _mustberoot
 
   unset name root qmgr user comm
   name=${_scriptname}
@@ -657,7 +648,6 @@ _mqctl() {
   done
   shift   # skip the --
 
-  _mustberoot
   [ -z "${name}" ] && { usage_mqctl "_mqctl: Must specify a name"; }
   [ -z "${root}" ] && { usage_mqctl "_mqctl: Must specify a root"; }
   [ -z "${qmgr}" ] && { usage_mqctl "_mqctl: Must specify a qmgr"; }
