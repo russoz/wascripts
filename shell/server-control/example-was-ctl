@@ -1,0 +1,14 @@
+#
+#  example-was-ctl
+#
+#  Example of how to use the server-control.sh function library to
+#
+
+. /some/dir/server-control.sh
+
+wasctl \
+  -n example-was \
+  -r /usr/IBM/WebSphere/AppServer/profiles/AppSrv01 \
+  -s server1 \
+  -U was \
+  $*
