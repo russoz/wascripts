@@ -1,0 +1,9 @@
+=head1 README
+
+This is a loose collection of scripts I have been using to assist me in my
+daily job as a WebSphere Administrator.
+
+Feel free to provide feedback of any kind. Flames C<< > /dev/null >>.
+
+C<< russoz at the g mail dot com thingie >>
+
