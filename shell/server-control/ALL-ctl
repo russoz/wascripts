@@ -3,39 +3,45 @@
 # Alexei Znamensky <russoz@gmail.com>
 #
 
+base_dir=/my/control/bin
+start_seq="dmgr-ctl node-ctl server1-ctl"
+stop_seq="server1-ctl node-ctl dmgr-ctl"
+
+##############################################################################
+
+msg() {
+  echo "$@" >&2
+}
+
 usage() {
-  echo "usage: ALL-ctl (start|stop|kill|restart)" >&2
+  msg "usage: ALL-ctl (start|stop|kill|restart)"
   exit 1
 }
 
-cmd="$1"
+cmd="$1"; shift
 [ -z "$cmd" ] && usage
-
-start_seq="dmgr node60 fwsecurity brods intpeoplesoft app1 node61"
-
-stop_seq="opis-dev-gi3 opis-dev server1-61 node61 mailplan maps app1 rep sir emissor centralizador brods intpeoplesoft fwsecurity node60 dmgr"
+err=0
 
 case "$cmd" in
   start)
+    msg "=== Attempting to $cmd services: $start_seq"
     for s in $start_seq; do
-      /was/bin/"${s}"-ctl start || { echo "ERROR: starting $s" >&2; }
-    done
-    ;;
+      ${base_dir}/${s} start || { msg "ERROR: Cannot start: ${s}"; err=1 }
+    done; return $err ;;
+
   stop|kill)
+    msg "=== Attempting to $cmd services: $stop_seq"
     for s in $stop_seq; do
-      /was/bin/${s}-ctl ${cmd} || { echo "ERROR: stopping $s" >&2; }
-    done
-    ;;
+      ${base_dir}/${s} ${cmd} || { msg "ERROR: Cannot ${cmd}: ${s}"; err=1 }
+    done; return $err ;;
+
   restart)
-    $0 stop
-    $0 kill
-    echo "Sleeping for a minute" >&2
-    sleep 60
-    $0 start
-    ;;
-  *) usage
-    ;;
+    $0 stop || $0 kill || {
+      msg "ERROR: Failed to stop services. Aborting."; return 1
+    }
+    msg "Sleeping for a minute"; sleep 60
+    $0 start ;;
+
+  *) usage ;;
 esac
-
-
 
