@@ -40,7 +40,7 @@ _logfile() {
   file="$1"; shift
 
   if [ -n "$1" ]; then
-    "$@" "$file"
+    $* "$file"
   elif [ -x /opt/freeware/bin/tail ]; then
     /opt/freeware/bin/tail -F "$file"
   else
@@ -157,8 +157,8 @@ _was_switch() {
     restart)    _run "$unixid" ${root}/bin/${_stop} ${server} $@ \
                   && sleep 5 \
                   && _run "$unixid" ${root}/bin/${_start} ${server} $@ ;;
-    log)        _logfile ${root}/logs/${_status_srv}/SystemOut.log "$@" ;;
-    err)        _logfile ${root}/logs/${_status_srv}/SystemErr.log "$@" ;;
+    log)        _logfile ${root}/logs/${_status_srv}/SystemOut.log $@ ;;
+    err)        _logfile ${root}/logs/${_status_srv}/SystemErr.log $@ ;;
     kill)       _was_kill "${root}" "${server}" ;;
     version)    _run "$unixid" ${root}/bin/versionInfo.sh ;;
     env)        _was_env ${root}/logs/${_status_srv}/SystemOut.log ;;
@@ -251,7 +251,7 @@ wasctl() {
 
   case "${comm}" in
     start|stop|status|status-all|restart|log|err|kill|version|env)
-          _was_switch s "${unixid}" "${root}" "${comm}" "${server}" $UP ;;
+          _was_switch s "${unixid}" "${root}" "${comm}" "${server}" $UP "$@" ;;
 
     help) usage_wasctl -n ${name} ;;
     *)    _msg "usage: ${name}" \
@@ -346,7 +346,7 @@ _wasnodectl() {
 
   case "${comm}" in
     start|stop|status|status-all|restart|log|err|kill|version|env)
-          _was_switch n "${unixid}" "${root}" "${comm}" "${server}" $UP ;;
+          _was_switch n "${unixid}" "${root}" "${comm}" "${server}" $UP "$@" ;;
 
     help) usage_wasnodectl -n ${name} ;;
     sync) [ -n "${dmgr}" ] && {
@@ -441,7 +441,7 @@ _wasdmgrctl() {
 
   case "${comm}" in
     start|stop|status|status-all|restart|log|err|kill|version|env)
-          _was_switch d "${unixid}" "${root}" "${comm}" "" $UP ;;
+          _was_switch d "${unixid}" "${root}" "${comm}" "" $UP "$@" ;;
 
     help) usage_wasdmgrctl -n ${name} ;;
     *)    _msg "usage: ${name}" \
