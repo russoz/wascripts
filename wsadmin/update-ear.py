@@ -15,7 +15,7 @@ if len(sys.argv) != 2:
     sys.exit(1)
 
 tz = TimeZone.getTimeZone(tzspec)
-df = SimpleDateFormat()
+df = SimpleDateFormat("yyyy.MM.dd HH:mm:ss.SSS z")
 df.setTimeZone(tz)
 
 def log(msg):
